@@ -1,0 +1,14 @@
+# Generated submission archive
+EShop-Distributed-Database-Project.zip
+
+# Oracle and Docker local data
+oracle-data/
+*.log
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp

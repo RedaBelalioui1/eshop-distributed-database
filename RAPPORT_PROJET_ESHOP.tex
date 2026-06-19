@@ -1,0 +1,769 @@
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{titlesec}
+
+\geometry{margin=2.5cm}
+\onehalfspacing
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\definecolor{codeblue}{rgb}{0.1,0.1,0.55}
+\definecolor{codegreen}{rgb}{0.0,0.45,0.0}
+
+\lstdefinestyle{sqlstyle}{
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{codeblue}\bfseries,
+    commentstyle=\color{codegreen},
+    stringstyle=\color{red!60!black},
+    breaklines=true,
+    frame=single,
+    columns=fullflexible,
+    showstringspaces=false,
+    tabsize=2,
+    language=SQL
+}
+
+\lstdefinestyle{textstyle}{
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    columns=fullflexible,
+    showstringspaces=false
+}
+
+\title{
+    \textbf{Rapport du Projet EShop}\\
+    \large Base de Donnees Distribuee avec Oracle PL/SQL
+}
+\author{
+    Realise par: \textbf{Nom Prenom}\\
+    Encadre par: \textbf{Nom du Professeur}
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\chapter{Introduction}
+
+Ce projet consiste a concevoir et implementer une base de donnees distribuee pour une application EShop avec Oracle Database et PL/SQL.
+
+L'objectif principal est de montrer comment une base relationnelle peut etre divisee en plusieurs fragments stockes sur deux sites differents. Le projet couvre aussi l'utilisation des procedures stockees, des triggers, des plans d'execution, des indexes et des requetes distribuees.
+
+Le projet est entierement dockerise afin de faciliter son execution sur n'importe quelle machine disposant de Docker.
+
+\chapter{Technologies Utilisees}
+
+Les technologies utilisees dans ce projet sont:
+
+\begin{itemize}
+    \item Oracle Database Free;
+    \item SQL pour la creation et la manipulation des tables;
+    \item PL/SQL pour les procedures stockees et les triggers;
+    \item Docker et Docker Compose;
+    \item SQL*Plus;
+    \item Oracle SQL Developer.
+\end{itemize}
+
+L'image Docker utilisee est:
+
+\begin{lstlisting}[style=textstyle]
+gvenzl/oracle-free:23-slim
+\end{lstlisting}
+
+Les informations de connexion sont:
+
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+Utilisateur & eshop \\
+\hline
+Mot de passe & eshop \\
+\hline
+Service Oracle & FREEPDB1 \\
+\hline
+Port local & 1523 \\
+\hline
+\end{tabular}
+\end{center}
+
+\chapter{Structure du Projet}
+
+La structure du projet est la suivante:
+
+\begin{lstlisting}[style=textstyle]
+.
+|-- docker-compose.yml
+|-- README.md
+|-- SUBMISSION.md
+|-- SUBMISSION_SQL_DEVELOPER.md
+|-- RAPPORT_PROJET_ESHOP.md
+|-- RAPPORT_PROJET_ESHOP.tex
+`-- sql/
+    |-- 01_create_global_schema.sql
+    |-- 02_create_site1_schema.sql
+    |-- 03_create_site2_schema.sql
+    |-- 04_insert_sample_data.sql
+    |-- 05_fragmentation_scenario1.sql
+    |-- 06_fragmentation_scenario2.sql
+    |-- 07_procedures_site1.sql
+    |-- 08_procedures_site2.sql
+    |-- 09_triggers_global.sql
+    |-- 10_queries_optimization.sql
+    |-- 11_distributed_query.sql
+    `-- 12_demo_check.sql
+\end{lstlisting}
+
+Les scripts SQL sont numerotes pour etre executes dans le bon ordre.
+
+\chapter{Modele Relationnel Global}
+
+La base globale contient quatre tables principales:
+
+\begin{itemize}
+    \item \texttt{Clients};
+    \item \texttt{Commandes};
+    \item \texttt{Produits};
+    \item \texttt{LigneCommandes}.
+\end{itemize}
+
+\section{Table Clients}
+
+La table \texttt{Clients} stocke les informations des clients:
+
+\begin{lstlisting}[style=textstyle]
+idclient, codeclient, societe, contact, ville, pays, telephone
+\end{lstlisting}
+
+La cle primaire est \texttt{idclient}.
+
+\section{Table Produits}
+
+La table \texttt{Produits} contient les produits vendus:
+
+\begin{lstlisting}[style=textstyle]
+idproduit, idcateg, designation, prixunitaire
+\end{lstlisting}
+
+La cle primaire est \texttt{idproduit}. La colonne \texttt{idcateg} represente la categorie du produit.
+
+\section{Table Commandes}
+
+La table \texttt{Commandes} contient les commandes effectuees par les clients:
+
+\begin{lstlisting}[style=textstyle]
+idcommande, idemploye, idclient, datecommande,
+adresse_livraison, ville_livraison, pays_livraison
+\end{lstlisting}
+
+La table \texttt{Commandes} reference \texttt{Clients} avec une cle etrangere:
+
+\begin{lstlisting}[style=sqlstyle]
+FOREIGN KEY (idclient) REFERENCES Clients(idclient)
+\end{lstlisting}
+
+\section{Table LigneCommandes}
+
+La table \texttt{LigneCommandes} contient les lignes des commandes:
+
+\begin{lstlisting}[style=textstyle]
+idlignecommande, idcommande, idproduit, quantite, remise
+\end{lstlisting}
+
+Elle reference:
+
+\begin{itemize}
+    \item \texttt{Commandes(idcommande)};
+    \item \texttt{Produits(idproduit)}.
+\end{itemize}
+
+\chapter{Contraintes d'Integrite}
+
+Le projet utilise plusieurs types de contraintes:
+
+\begin{itemize}
+    \item cles primaires;
+    \item cles etrangeres;
+    \item contraintes \texttt{CHECK}.
+\end{itemize}
+
+Exemples:
+
+\begin{lstlisting}[style=sqlstyle]
+quantite > 0
+remise >= 0 AND remise < 1
+prixunitaire >= 0
+\end{lstlisting}
+
+Ces contraintes garantissent la coherence des donnees.
+
+\chapter{Base de Donnees Distribuee}
+
+Une base de donnees distribuee est une base dont les donnees sont reparties sur plusieurs sites.
+
+Dans un vrai environnement, chaque site peut etre place sur un serveur different. Dans ce projet, les deux sites sont simules dans le meme conteneur Oracle pour simplifier les tests.
+
+Les deux sites sont:
+
+\begin{itemize}
+    \item \textbf{Site1};
+    \item \textbf{Site2}.
+\end{itemize}
+
+Les tables du Site1 sont:
+
+\begin{lstlisting}[style=textstyle]
+Clients1, Commandes1, Produits1, LigneCommandes1
+\end{lstlisting}
+
+Les tables du Site2 sont:
+
+\begin{lstlisting}[style=textstyle]
+Clients2, Commandes2, Produits2, LigneCommandes2
+\end{lstlisting}
+
+\chapter{Fragmentation Horizontale}
+
+La fragmentation horizontale consiste a diviser une table par lignes.
+
+Dans ce projet, la table fragmentee est:
+
+\begin{lstlisting}[style=textstyle]
+LigneCommandes
+\end{lstlisting}
+
+Les lignes sont reparties entre:
+
+\begin{lstlisting}[style=textstyle]
+LigneCommandes1
+LigneCommandes2
+\end{lstlisting}
+
+\section{Scenario 1}
+
+Le premier scenario est implemente dans:
+
+\begin{lstlisting}[style=textstyle]
+05_fragmentation_scenario1.sql
+\end{lstlisting}
+
+Regle du Site1:
+
+\begin{lstlisting}[style=textstyle]
+idcateg = 50 AND quantite > 100
+\end{lstlisting}
+
+Regle du Site2:
+
+\begin{lstlisting}[style=textstyle]
+idcateg = 35 AND quantite > 50
+\end{lstlisting}
+
+Comme la categorie est stockee dans la table \texttt{Produits}, il faut faire une jointure entre \texttt{LigneCommandes} et \texttt{Produits}.
+
+\begin{lstlisting}[style=sqlstyle]
+SELECT lc.*
+FROM LigneCommandes lc
+JOIN Produits p ON p.idproduit = lc.idproduit
+WHERE p.idcateg = 50
+  AND lc.quantite > 100;
+\end{lstlisting}
+
+Resultat attendu:
+
+\begin{lstlisting}[style=textstyle]
+SCENARIO 1 - SITE1 rows = 3
+SCENARIO 1 - SITE2 rows = 3
+\end{lstlisting}
+
+\section{Scenario 2}
+
+Le deuxieme scenario est implemente dans:
+
+\begin{lstlisting}[style=textstyle]
+06_fragmentation_scenario2.sql
+\end{lstlisting}
+
+Regle du Site1:
+
+\begin{lstlisting}[style=textstyle]
+quantite >= 100
+\end{lstlisting}
+
+Regle du Site2:
+
+\begin{lstlisting}[style=textstyle]
+quantite < 100
+\end{lstlisting}
+
+Resultat attendu:
+
+\begin{lstlisting}[style=textstyle]
+SCENARIO 2 - SITE1 rows = 4
+SCENARIO 2 - SITE2 rows = 5
+\end{lstlisting}
+
+\chapter{Configuration du Scenario Actif}
+
+Le scenario actif est stocke dans la table:
+
+\begin{lstlisting}[style=textstyle]
+Fragmentation_Config
+\end{lstlisting}
+
+Cette table contient une colonne \texttt{scenario}.
+
+\begin{itemize}
+    \item Si \texttt{scenario = 1}, les triggers appliquent le scenario 1.
+    \item Si \texttt{scenario = 2}, les triggers appliquent le scenario 2.
+\end{itemize}
+
+Cette solution permet de changer le scenario actif sans modifier le code PL/SQL des triggers.
+
+\chapter{Procedures Stockees PL/SQL}
+
+Une procedure stockee est un bloc PL/SQL enregistre dans la base de donnees. Elle permet d'executer plusieurs instructions SQL avec un seul appel.
+
+Dans ce projet, les procedures sont organisees dans deux packages:
+
+\begin{lstlisting}[style=textstyle]
+Site1
+Site2
+\end{lstlisting}
+
+\section{Package Site1}
+
+Le package \texttt{Site1} contient:
+
+\begin{lstlisting}[style=textstyle]
+Site1.insertligne
+Site1.deleteligne
+Site1.updateligne
+\end{lstlisting}
+
+\section{Package Site2}
+
+Le package \texttt{Site2} contient:
+
+\begin{lstlisting}[style=textstyle]
+Site2.insertligne
+Site2.deleteligne
+Site2.updateligne
+\end{lstlisting}
+
+\section{Procedure insertligne}
+
+La procedure \texttt{insertligne} insere une ligne de commande dans un site.
+
+Avant l'insertion, elle verifie que les donnees referencees existent:
+
+\begin{itemize}
+    \item le client;
+    \item la commande;
+    \item le produit.
+\end{itemize}
+
+Si ces donnees n'existent pas encore dans le site, elles sont copiees depuis les tables globales. Cela permet de respecter l'integrite referentielle locale.
+
+\section{Procedure deleteligne}
+
+La procedure \texttt{deleteligne} supprime une ligne de commande par son identifiant.
+
+Elle supprime ensuite les donnees locales devenues inutiles, comme les commandes, les clients ou les produits qui ne sont plus references.
+
+\section{Procedure updateligne}
+
+La procedure \texttt{updateligne} modifie:
+
+\begin{lstlisting}[style=textstyle]
+idproduit, quantite, remise
+\end{lstlisting}
+
+Elle est utile lorsqu'une ligne de commande change de produit, de quantite ou de remise.
+
+\chapter{Triggers Globaux}
+
+Un trigger est un bloc PL/SQL execute automatiquement par Oracle lorsqu'un evenement se produit.
+
+Dans ce projet, les triggers sont crees sur la table globale:
+
+\begin{lstlisting}[style=textstyle]
+LigneCommandes
+\end{lstlisting}
+
+Les triggers crees sont:
+
+\begin{lstlisting}[style=textstyle]
+SYC_INSERT_LIGNE
+SYC_DELETE_LIGNE
+SYC_UPDATE_LIGNE
+\end{lstlisting}
+
+\section{Trigger SYC\_INSERT\_LIGNE}
+
+Ce trigger s'execute automatiquement apres une insertion dans \texttt{LigneCommandes}.
+
+Il lit le scenario actif dans \texttt{Fragmentation_Config}, puis il envoie la ligne vers le bon site.
+
+\section{Trigger SYC\_DELETE\_LIGNE}
+
+Ce trigger s'execute automatiquement apres une suppression dans \texttt{LigneCommandes}.
+
+Il supprime la ligne correspondante dans les deux sites en appelant:
+
+\begin{lstlisting}[style=textstyle]
+Site1.deleteligne
+Site2.deleteligne
+\end{lstlisting}
+
+\section{Trigger SYC\_UPDATE\_LIGNE}
+
+Ce trigger s'execute automatiquement apres une modification de:
+
+\begin{lstlisting}[style=textstyle]
+idproduit, quantite, remise
+\end{lstlisting}
+
+Une ligne peut changer de site apres une modification. Le trigger supprime donc l'ancienne version dans les sites, puis reinserre la nouvelle version dans le bon site.
+
+\chapter{Optimisation de Requete}
+
+Le fichier concerne est:
+
+\begin{lstlisting}[style=textstyle]
+10_queries_optimization.sql
+\end{lstlisting}
+
+La requete demandee calcule le nombre de commandes par client en 2026:
+
+\begin{lstlisting}[style=sqlstyle]
+SELECT
+  c.idclient,
+  c.codeclient,
+  c.societe,
+  COUNT(co.idcommande) AS nombre_commandes_2026
+FROM Clients c
+JOIN Commandes co ON co.idclient = c.idclient
+WHERE co.datecommande >= DATE '2026-01-01'
+  AND co.datecommande < DATE '2027-01-01'
+GROUP BY c.idclient, c.codeclient, c.societe
+ORDER BY nombre_commandes_2026 DESC, c.societe;
+\end{lstlisting}
+
+\section{Plan d'Execution}
+
+Le plan d'execution est genere avec:
+
+\begin{lstlisting}[style=sqlstyle]
+EXPLAIN PLAN FOR
+SELECT ...
+
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+\end{lstlisting}
+
+Le plan d'execution montre comment Oracle execute la requete.
+
+Quelques operations importantes:
+
+\begin{itemize}
+    \item \texttt{TABLE ACCESS FULL}: Oracle lit toute la table;
+    \item \texttt{INDEX RANGE SCAN}: Oracle utilise un index;
+    \item \texttt{HASH GROUP BY}: Oracle regroupe les resultats;
+    \item \texttt{SORT ORDER BY}: Oracle trie les resultats;
+    \item \texttt{JOIN}: Oracle combine deux tables.
+\end{itemize}
+
+\section{Indexes Ajoutes}
+
+Premier index:
+
+\begin{lstlisting}[style=sqlstyle]
+CREATE INDEX idx_commandes_date_client
+ON Commandes(datecommande, idclient);
+\end{lstlisting}
+
+Cet index aide la requete parce qu'elle filtre par date et joint par client.
+
+Deuxieme index:
+
+\begin{lstlisting}[style=sqlstyle]
+CREATE INDEX idx_commandes_client
+ON Commandes(idclient);
+\end{lstlisting}
+
+Cet index aide les jointures entre \texttt{Clients} et \texttt{Commandes}.
+
+Apres l'optimisation, le plan peut afficher:
+
+\begin{lstlisting}[style=textstyle]
+INDEX RANGE SCAN IDX_COMMANDES_DATE_CLIENT
+\end{lstlisting}
+
+Cela montre qu'Oracle utilise l'index.
+
+\chapter{Requete Distribuee}
+
+Le fichier concerne est:
+
+\begin{lstlisting}[style=textstyle]
+11_distributed_query.sql
+\end{lstlisting}
+
+L'objectif est de calculer le chiffre d'affaires par categorie de produit en 2026.
+
+La formule est:
+
+\begin{lstlisting}[style=textstyle]
+revenue = quantite * prixunitaire * (1 - remise)
+\end{lstlisting}
+
+La requete lit les donnees de Site1 et Site2, puis les combine avec \texttt{UNION ALL}.
+
+\begin{lstlisting}[style=sqlstyle]
+SELECT
+  idcateg,
+  ROUND(SUM(revenue), 2) AS chiffre_affaires_2026
+FROM (
+  SELECT idcateg, revenue FROM v_site1_revenue_2026
+  UNION ALL
+  SELECT idcateg, revenue FROM v_site2_revenue_2026
+)
+GROUP BY idcateg
+ORDER BY idcateg;
+\end{lstlisting}
+
+Resultat attendu:
+
+\begin{center}
+\begin{tabular}{|c|c|}
+\hline
+Categorie & Chiffre d'affaires 2026 \\
+\hline
+20 & 321300 \\
+\hline
+35 & 132215 \\
+\hline
+50 & 7342755 \\
+\hline
+70 & 71600 \\
+\hline
+\end{tabular}
+\end{center}
+
+\chapter{Simulation des Database Links}
+
+Dans un vrai systeme distribue Oracle, les tables distantes seraient appelees avec des database links:
+
+\begin{lstlisting}[style=sqlstyle]
+LigneCommandes1@SITE1_LINK
+LigneCommandes2@SITE2_LINK
+\end{lstlisting}
+
+Dans ce projet, les sites sont simules dans le meme schema avec des tables locales:
+
+\begin{lstlisting}[style=textstyle]
+LigneCommandes1
+LigneCommandes2
+\end{lstlisting}
+
+Cette approche rend le projet plus simple a executer localement tout en gardant la logique d'une base distribuee.
+
+\chapter{Dockerisation}
+
+Le fichier \texttt{docker-compose.yml} lance Oracle Database automatiquement.
+
+Commande de lancement:
+
+\begin{lstlisting}[style=textstyle]
+docker compose up -d
+\end{lstlisting}
+
+Suivi des logs:
+
+\begin{lstlisting}[style=textstyle]
+docker logs -f eshop-oracle
+\end{lstlisting}
+
+Le message attendu est:
+
+\begin{lstlisting}[style=textstyle]
+DATABASE IS READY TO USE!
+\end{lstlisting}
+
+Connexion SQL*Plus:
+
+\begin{lstlisting}[style=textstyle]
+docker exec -it eshop-oracle sqlplus eshop/eshop@FREEPDB1
+\end{lstlisting}
+
+Connexion Oracle SQL Developer:
+
+\begin{lstlisting}[style=textstyle]
+Host: localhost
+Port: 1523
+Service name: FREEPDB1
+Username: eshop
+Password: eshop
+\end{lstlisting}
+
+\chapter{Tests et Resultats}
+
+\section{Tables Globales}
+
+Resultats attendus:
+
+\begin{center}
+\begin{tabular}{|l|c|}
+\hline
+Table & Nombre de lignes \\
+\hline
+Clients & 5 \\
+\hline
+Commandes & 7 \\
+\hline
+Produits & 6 \\
+\hline
+LigneCommandes & 9 \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Scenarios de Fragmentation}
+
+\begin{center}
+\begin{tabular}{|l|c|c|}
+\hline
+Scenario & Site1 & Site2 \\
+\hline
+Scenario 1 & 3 & 3 \\
+\hline
+Scenario 2 & 4 & 5 \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Triggers}
+
+Les triggers attendus sont:
+
+\begin{lstlisting}[style=textstyle]
+SYC_INSERT_LIGNE
+SYC_DELETE_LIGNE
+SYC_UPDATE_LIGNE
+\end{lstlisting}
+
+Ils doivent avoir le statut \texttt{VALID}.
+
+\section{Requete Distribuee}
+
+La requete distribuee retourne:
+
+\begin{center}
+\begin{tabular}{|c|c|}
+\hline
+Categorie & Chiffre d'affaires 2026 \\
+\hline
+20 & 321300 \\
+\hline
+35 & 132215 \\
+\hline
+50 & 7342755 \\
+\hline
+70 & 71600 \\
+\hline
+\end{tabular}
+\end{center}
+
+\chapter{Conclusion}
+
+Ce projet montre comment une base de donnees EShop peut etre organisee dans un contexte distribue avec Oracle.
+
+La table globale \texttt{LigneCommandes} est fragmentee horizontalement selon deux scenarios. Les sites \texttt{Site1} et \texttt{Site2} stockent chacun une partie des donnees.
+
+Les procedures stockees permettent de manipuler les donnees de chaque site tout en respectant l'integrite referentielle. Les triggers synchronisent automatiquement les operations effectuees sur la base globale avec les fragments locaux.
+
+Le projet montre aussi l'optimisation de requetes grace aux plans d'execution et aux indexes. Enfin, la requete distribuee permet de combiner les donnees des deux sites pour calculer le chiffre d'affaires par categorie.
+
+Grace a Docker, le projet est facilement executable sur une autre machine.
+
+\chapter*{Annexe: Commandes Utiles}
+\addcontentsline{toc}{chapter}{Annexe: Commandes Utiles}
+
+Demarrer le projet:
+
+\begin{lstlisting}[style=textstyle]
+docker compose up -d
+\end{lstlisting}
+
+Voir les logs:
+
+\begin{lstlisting}[style=textstyle]
+docker logs -f eshop-oracle
+\end{lstlisting}
+
+Connexion SQL*Plus:
+
+\begin{lstlisting}[style=textstyle]
+docker exec -it eshop-oracle sqlplus eshop/eshop@FREEPDB1
+\end{lstlisting}
+
+Executer le scenario 1:
+
+\begin{lstlisting}[style=sqlstyle]
+@/container-entrypoint-initdb.d/05_fragmentation_scenario1.sql
+\end{lstlisting}
+
+Executer le scenario 2:
+
+\begin{lstlisting}[style=sqlstyle]
+@/container-entrypoint-initdb.d/06_fragmentation_scenario2.sql
+\end{lstlisting}
+
+Executer l'optimisation:
+
+\begin{lstlisting}[style=sqlstyle]
+@/container-entrypoint-initdb.d/10_queries_optimization.sql
+\end{lstlisting}
+
+Executer la requete distribuee:
+
+\begin{lstlisting}[style=sqlstyle]
+@/container-entrypoint-initdb.d/11_distributed_query.sql
+\end{lstlisting}
+
+Verification rapide:
+
+\begin{lstlisting}[style=sqlstyle]
+@/container-entrypoint-initdb.d/12_demo_check.sql
+\end{lstlisting}
+
+Reinitialiser completement:
+
+\begin{lstlisting}[style=textstyle]
+docker compose down -v
+docker compose up -d
+\end{lstlisting}
+
+\end{document}

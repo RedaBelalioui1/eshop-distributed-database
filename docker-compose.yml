@@ -1,0 +1,22 @@
+services:
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: eshop-oracle
+    ports:
+      - "1523:1521"
+    environment:
+      ORACLE_PASSWORD: oracle
+      APP_USER: eshop
+      APP_USER_PASSWORD: eshop
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./sql:/container-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  oracle-data:
